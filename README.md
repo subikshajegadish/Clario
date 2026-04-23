@@ -1,12 +1,14 @@
 # Clario
 
-Minimal full-stack hackathon starter for **Clario** (AI file organizer).
+Minimal full-stack hackathon starter for **Clario**, an AI-powered file renaming and organization tool.
 
 ## Project Structure
 
 - `frontend/` - React + Vite UI
 - `backend/` - Node.js + Express API
 - `ai/` - AI prompt and analyzer stubs
+- `README.md` - setup and run instructions
+- `.gitignore` - common local/dev ignores
 
 ## Run Locally
 
@@ -14,6 +16,7 @@ Minimal full-stack hackathon starter for **Clario** (AI file organizer).
 
 ```bash
 cd frontend
+npm install
 npm run dev
 ```
 
@@ -21,8 +24,13 @@ npm run dev
 
 ```bash
 cd backend
+npm install
 node server.js
 ```
+
+### AI
+
+`ai/analyzer.js` and `ai/prompts.js` are lightweight placeholders for future Claude-powered analysis integration.
 
 ## Notes
 

@@ -9,6 +9,15 @@ build/
 .env
 .env.*
 
+# Archives
+*.zip
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
