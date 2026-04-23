@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import toast, { Toaster } from 'react-hot-toast'
+import JSZip from 'jszip'
 import './App.css'
 import UploadBox from './components/UploadBox'
 import FileList from './components/FileList'
@@ -46,6 +47,7 @@ function App() {
     })
     setSelectedFiles(valid)
   }
+  console.log(selectedFiles)
 
   // Normalizes backend /organize response into the tree shape used by FolderTree.
   const mapOrganizePreviewToTree = (preview) => ({
@@ -242,6 +244,46 @@ function App() {
     }
   }
 
+  // Builds a ZIP in-memory with files grouped into their AI-assigned category folders.
+  const handleDownloadZip = async () => {
+    if (selectedFiles.length === 0 || analysisResults.length === 0) return
+
+    const toastId = toast.loading('Building ZIP…')
+    try {
+      const zip = new JSZip()
+
+      // Build a lookup map: "name_size" → category from analysis results.
+      // selectedFiles still holds the original File objects in RAM.
+      const categoryMap = {}
+      analysisResults.forEach((result) => {
+        // Match the file in selectedFiles to get its size for the key.
+        const match = selectedFiles.find((f) => f.name === result.original_name)
+        if (match) {
+          const key = `${match.name}_${match.size}`
+          categoryMap[key] = result.category || 'Uncategorized'
+        }
+      })
+
+      selectedFiles.forEach((file) => {
+        const key = `${file.name}_${file.size}`
+        const folder = categoryMap[key] || 'Uncategorized'
+        zip.folder(folder).file(file.name, file)
+      })
+
+      const blob = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = 'clario-organized.zip'
+      anchor.click()
+      URL.revokeObjectURL(url)
+
+      toast.success('ZIP downloaded!', { id: toastId })
+    } catch (zipError) {
+      toast.error(`ZIP failed: ${zipError.message}`, { id: toastId })
+    }
+  }
+
   return (
     <main className="app">
       <Toaster
@@ -274,14 +316,24 @@ function App() {
           Clario automatically detects file themes and groups similar files together.
         </p>
         <UploadBox onFilesSelected={handleFilesSelected} />
-        <button
-          className="analyze-button"
-          type="button"
-          onClick={handleAnalyzeFiles}
-          disabled={isLoading}
-        >
-          {isLoading ? 'Analyzing...' : 'Analyze Files'}
-        </button>
+        <div className="button-row">
+          <button
+            className="analyze-button"
+            type="button"
+            onClick={handleAnalyzeFiles}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Analyzing...' : 'Analyze Files'}
+          </button>
+          <button
+            className="download-button"
+            type="button"
+            onClick={handleDownloadZip}
+            disabled={analysisResults.length === 0 || isLoading}
+          >
+            ⬇ Download as ZIP
+          </button>
+        </div>
         {error ? <p className="error-text">{error}</p> : null}
       </section>
 
