@@ -220,3 +220,26 @@ Current status is healthy and demo-ready:
 - Validation:
   - `npm run lint` passes
   - `npm run build` passes
+
+## 10) Improved AI Mock Analyzer Realism
+
+- Upgraded `ai/analyzer.js` to produce more varied, believable outputs based on:
+  - filename keywords
+  - placeholder extracted text
+  - file type / extension
+  - selected mode (`general`, `school`, `job-search`)
+- Cases explicitly covered with unique output behavior:
+  - resume / cv
+  - lecture notes / class notes
+  - receipt / invoice
+  - screenshot / image
+  - generic fallback documents
+- Mode-sensitive behavior now includes:
+  - `school`: more specific academic categories like `Course Notes`
+  - `job-search`: career-focused categories like `Job Applications` and `Job Search Expenses`
+  - `general`: broader default categorization
+- Preserved response contract:
+  - `new_name`, `category`, `summary`, `confidence`, `reasoning`
+- Added/kept clear comments around decision logic for easier future AI replacement.
+- Validation:
+  - Ran local Node sanity checks across all required cases and confirmed varied outputs.
