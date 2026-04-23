@@ -321,3 +321,98 @@ Current status is healthy and demo-ready:
 - Validation:
   - `frontend`: `npm run lint` and `npm run build` pass
   - `backend`: mixed-file `/analyze` test returns believable varied outputs across all target categories
+
+## 14) Frontend File Content Extraction Upgrade
+
+- Upgraded frontend analyze payload generation to use actual file content when possible.
+- Added lightweight PDF extraction support in `frontend/src/App.jsx` using `pdfjs-dist`.
+  - For `.pdf`, the app now attempts client-side text extraction page-by-page.
+  - If extraction fails/returns empty, a clean PDF-specific fallback text is sent.
+- Added real text reading for:
+  - `.txt`
+  - `.md`
+  using browser File API (`file.text()`).
+- Added image placeholder behavior for:
+  - `.png`, `.jpg`, `.jpeg`, `.webp`
+  - sends `"image file uploaded"` (no OCR).
+- Added fallback text for unsupported file types with filename/type context.
+- Preserved existing flow and states:
+  - select files -> analyze -> organize -> render results + folder tree
+  - loading and error handling unchanged
+- Validation:
+  - `frontend`: `npm run lint` passes
+  - `frontend`: `npm run build` passes
+
+## 15) Text-First Analyzer Refactor (Backend + AI)
+
+- Refactored categorization priority to be explicitly signal-weighted:
+  1. extracted text content
+  2. filename keywords
+  3. file type/extension
+- Updated `backend/services/mockAi.js`:
+  - introduced weighted keyword matching per category
+  - uses extracted text as primary scoring source
+  - keeps fallback behavior for missing text
+  - improved reasoning to mention actual detected terms and whether text was used
+- Updated `ai/analyzer.js` with the same text-first detection strategy for consistency.
+- Preserved response shape used by frontend/backend:
+  - `new_name`, `category`, `summary`, `confidence`, `reasoning`
+- Preserved existing API flow:
+  - `/analyze` and `/organize` behavior unchanged from client perspective
+- Validation:
+  - Mixed-file `/analyze` checks confirm text can override misleading filenames
+    (example: `resume_misleading_name.pdf` with recipe text now categorized as `Recipes`).
+
+## 16) LLM-Ready Analyzer Interface (Backend)
+
+- Refactored backend analyzer service for clean future LLM swap-in.
+- Updated `backend/services/mockAi.js` to expose:
+  - `analyzeFileWithRules(fileName, fileType, extractedText)`
+  - `analyzeFileWithLLM(fileName, fileType, extractedText)` (stub for now)
+  - `analyzeFile(fileName, fileType, extractedText)` (unified entrypoint)
+- Behavior:
+  - `analyzeFile` attempts LLM path only when `USE_LLM_ANALYZER=true`
+  - falls back to rule-based analyzer by default (current demo behavior)
+- Added `backend/services/llmPrompt.js` with a backend-ready file analysis prompt template for future provider integration.
+- Kept API output contract unchanged:
+  - `new_name`, `category`, `summary`, `confidence`, `reasoning`
+- Updated `backend/server.js` analyze handler for async analyzer calls with safe error response.
+- Validation:
+  - `/analyze` endpoint returns expected structured output after refactor
+  - service exports include all new interface functions
+
+## 17) Real LLM Integration (Backend Analyzer)
+
+- Implemented real API integration inside `analyzeFileWithLLM(...)` in `backend/services/mockAi.js`.
+- Provider selection is environment-variable driven:
+  - OpenAI path when `OPENAI_API_KEY` is present
+  - Claude path when `CLAUDE_API_KEY` is present
+- `analyzeFile(...)` remains unified entrypoint:
+  - if `USE_LLM_ANALYZER=true` -> tries LLM
+  - if LLM fails / no valid JSON -> automatically falls back to `analyzeFileWithRules(...)`
+- Sent model context includes:
+  - `fileName`
+  - `fileType`
+  - `extractedText` (truncated to ~3500 chars)
+- Reused prompt template from `backend/services/llmPrompt.js`.
+- Added safe parsing + validation:
+  - supports direct JSON and JSON extracted from fenced/text responses
+  - validates required fields
+  - clamps `confidence` to [0, 1]
+  - ensures stable output shape
+- Added non-crashing error handling:
+  - logs analyzer/provider errors
+  - backend continues serving with rule-based fallback
+- Validation:
+  - LLM-enabled path without API key correctly falls back to rules
+  - `/analyze` endpoint still returns structured results in expected format
+
+## 18) Environment Template for LLM Setup
+
+- Added root `.env.example` with minimal backend analyzer settings:
+  - `USE_LLM_ANALYZER`
+  - `OPENAI_API_KEY`
+  - `CLAUDE_API_KEY`
+  - optional model overrides (`OPENAI_MODEL`, `CLAUDE_MODEL`)
+- Purpose:
+  - make local LLM setup explicit and copy/paste friendly for demo usage.

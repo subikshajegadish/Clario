@@ -18,7 +18,7 @@ app.get("/health", (req, res) => {
 });
 
 // Analyze route: accepts files and auto-detects themes per file.
-app.post("/analyze", (req, res) => {
+app.post("/analyze", async (req, res) => {
   const { files = [] } = req.body;
 
   if (!Array.isArray(files)) {
@@ -27,12 +27,18 @@ app.post("/analyze", (req, res) => {
     });
   }
 
-  const analysis = analyzeFiles(files);
-
-  return res.json({
-    count: analysis.length,
-    results: analysis,
-  });
+  try {
+    const analysis = await analyzeFiles(files);
+    return res.json({
+      count: analysis.length,
+      results: analysis,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Failed to analyze files.",
+      details: error.message,
+    });
+  }
 });
 
 // Organize route: accepts analyzed files and returns folder tree preview.

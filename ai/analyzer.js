@@ -1,5 +1,6 @@
 // Mock analyzer foundation for Clario.
 // Keeps logic deterministic so frontend/backend demos are stable.
+// Prioritizes extracted text first, then filename, then file type.
 
 function normalize(value = "") {
   return String(value).toLowerCase();
@@ -21,109 +22,171 @@ function getExtension(fileName = "", fileType = "") {
   return normalize(fileType) || "txt";
 }
 
-function detectSignals(fileName = "", extractedText = "", fileType = "") {
-  const full = `${normalize(fileName)} ${normalize(extractedText)} ${normalize(fileType)}`;
+const CATEGORY_RULES = [
+  {
+    category: "Job Search",
+    keywords: ["resume", "cv", "experience", "skills", "education", "cover letter", "interview"],
+  },
+  {
+    category: "Academics",
+    keywords: ["lecture", "course", "assignment", "study", "syllabus", "exam", "notes"],
+  },
+  {
+    category: "Recipes",
+    keywords: ["recipe", "ingredients", "cook", "cooking", "oven", "pasta", "cake"],
+  },
+  {
+    category: "Finance / Receipts",
+    keywords: ["invoice", "receipt", "payment", "transaction", "total", "tax", "bill"],
+  },
+  {
+    category: "Travel",
+    keywords: ["flight", "hotel", "itinerary", "boarding", "booking", "departure", "travel"],
+  },
+  {
+    category: "Personal Documents",
+    keywords: ["passport", "license", "identity", "id", "statement", "driver", "account"],
+  },
+  {
+    category: "Screenshots / Images",
+    keywords: ["screenshot", "screen capture", "photo", "image", "img_"],
+  },
+];
+
+function matchedTermsInSource(sourceText = "", keywords = []) {
+  const lower = sourceText.toLowerCase();
+  return keywords.filter((term) => lower.includes(term));
+}
+
+function detectCategory(fileName = "", extractedText = "", fileType = "") {
+  const lowerText = normalize(extractedText);
+  const lowerName = normalize(fileName);
+  const lowerType = normalize(fileType);
   const ext = getExtension(fileName, fileType);
 
-  // Decision logic combines filename keywords, text hints, and MIME/extension signals.
-  const isResume = /(resume|cv|curriculum vitae|cover letter|interview)/.test(full);
-  const isNotes = /(lecture|class notes|notes|chapter|assignment|course|professor|homework|study)/.test(full);
-  const isRecipe = /(recipe|pasta|cake|cooking|ingredients|kitchen|oven)/.test(full);
-  const isReceipt = /(receipt|transaction|amount paid|merchant|tax|invoice|billing|bill|payment)/.test(full);
-  const isTravel = /(flight|hotel|itinerary|boarding|travel|trip|booking)/.test(full);
-  const isImageType = /image\//.test(normalize(fileType)) || /(png|jpg|jpeg|webp|gif)/.test(ext);
-  const isScreenshot = /(screenshot|screen shot|screen capture|snip|img_|photo|image)/.test(full);
-  const isPersonal = /(passport|license| id |driver|statement|identity|bank statement)/.test(` ${full} `);
+  const scores = {};
+  const matchedSignals = {};
+
+  CATEGORY_RULES.forEach((rule) => {
+    const textMatches = matchedTermsInSource(lowerText, rule.keywords);
+    const fileNameMatches = matchedTermsInSource(lowerName, rule.keywords);
+    const typeMatches = matchedTermsInSource(`${lowerType} ${ext}`, rule.keywords);
+
+    // Priority weights: extracted text > filename > file type.
+    const score = textMatches.length * 3 + fileNameMatches.length * 1.5 + typeMatches.length * 1;
+    scores[rule.category] = score;
+    matchedSignals[rule.category] = { textMatches, fileNameMatches, typeMatches };
+  });
+
+  const isImageType = /image\//.test(lowerType) || /(png|jpg|jpeg|webp|gif)/.test(ext);
+  if (isImageType) {
+    scores["Screenshots / Images"] = (scores["Screenshots / Images"] || 0) + 2;
+    matchedSignals["Screenshots / Images"] = {
+      ...(matchedSignals["Screenshots / Images"] || {}),
+      typeMatches: [...(matchedSignals["Screenshots / Images"]?.typeMatches || []), ext],
+    };
+  }
+
+  let bestCategory = "General";
+  let bestScore = 0;
+  Object.entries(scores).forEach(([category, score]) => {
+    if (score > bestScore) {
+      bestScore = score;
+      bestCategory = category;
+    }
+  });
 
   return {
-    ext,
-    isResume,
-    isNotes,
-    isRecipe,
-    isReceipt,
-    isTravel,
-    isImageType,
-    isScreenshot,
-    isPersonal,
+    category: bestScore > 0 ? bestCategory : "General",
+    signals: matchedSignals[bestCategory] || { textMatches: [], fileNameMatches: [], typeMatches: [] },
+    usedText: lowerText.trim().length > 0,
   };
 }
 
 function buildMockResult(fileName, extractedText, fileType) {
-  const { ext, isResume, isNotes, isRecipe, isReceipt, isTravel, isImageType, isScreenshot, isPersonal } = detectSignals(
-    fileName,
-    extractedText,
-    fileType
-  );
+  const detection = detectCategory(fileName, extractedText, fileType);
+  const { category, signals, usedText } = detection;
+  const ext = getExtension(fileName, fileType);
   const baseName = cleanBaseName(fileName);
   const textPreview = (extractedText || "").trim().slice(0, 90);
 
-  if (isResume) {
+  const rankedTerms = [
+    ...new Set([...(signals.textMatches || []), ...(signals.fileNameMatches || []), ...(signals.typeMatches || [])]),
+  ].slice(0, 3);
+  const signalReason = rankedTerms.length
+    ? `Detected terms like ${rankedTerms.join(", ")}.`
+    : "No strong keyword signals were detected.";
+  const sourceReason = usedText
+    ? "Used extracted text as primary signal, with filename/type as backup."
+    : "No extracted text found, so filename/type signals were used.";
+
+  if (category === "Job Search") {
     return {
       new_name: `job-search-${baseName}.${ext}`,
       category: "Job Search",
       summary: "Resume highlighting professional experience, technical skills, and project impact.",
       confidence: 0.96,
-      reasoning: "Matched resume/CV keywords in filename or text indicating career-related content.",
+      reasoning: `${signalReason} ${sourceReason}`,
     };
   }
 
-  if (isNotes) {
+  if (category === "Academics") {
     return {
       new_name: `academics-notes-${baseName}.${ext}`,
       category: "Academics",
       summary: "Academic document with lecture notes, assignment context, or study material.",
       confidence: 0.93,
-      reasoning: "Detected note, lecture, assignment, or study-related keywords.",
+      reasoning: `${signalReason} ${sourceReason}`,
     };
   }
 
-  if (isRecipe) {
+  if (category === "Recipes") {
     return {
       new_name: `recipe-${baseName}.${ext}`,
       category: "Recipes",
       summary: "Cooking document containing ingredients, instructions, and preparation steps.",
       confidence: 0.92,
-      reasoning: "Detected food and cooking terms such as recipe, pasta, cake, or ingredients.",
+      reasoning: `${signalReason} ${sourceReason}`,
     };
   }
 
-  if (isReceipt) {
+  if (category === "Finance / Receipts") {
     return {
       new_name: `finance-receipt-${baseName}.${ext}`,
       category: "Finance / Receipts",
       summary: "Financial document with transaction, billing, and payment details.",
       confidence: 0.94,
-      reasoning: "Detected receipt, invoice, bill, payment, tax, or transaction references.",
+      reasoning: `${signalReason} ${sourceReason}`,
     };
   }
 
-  if (isTravel) {
+  if (category === "Travel") {
     return {
       new_name: `travel-itinerary-${baseName}.${ext}`,
       category: "Travel",
       summary: "Travel booking document with itinerary, flight, or hotel information.",
       confidence: 0.91,
-      reasoning: "Detected travel planning terms including flight, hotel, itinerary, or boarding.",
+      reasoning: `${signalReason} ${sourceReason}`,
     };
   }
 
-  if (isScreenshot || isImageType) {
+  if (category === "Screenshots / Images") {
     return {
       new_name: `image-capture-${baseName}.${ext}`,
       category: "Screenshots / Images",
       summary: "Image file likely used as a visual reference or captured screen context.",
-      confidence: isScreenshot ? 0.9 : 0.86,
-      reasoning: "Detected screenshot/image cues from filename and file type.",
+      confidence: 0.89,
+      reasoning: `${signalReason} ${sourceReason}`,
     };
   }
 
-  if (isPersonal) {
+  if (category === "Personal Documents") {
     return {
       new_name: `personal-doc-${baseName}.${ext}`,
       category: "Personal Documents",
       summary: "Personal document containing identification or account statement information.",
       confidence: 0.9,
-      reasoning: "Detected personal document terms such as passport, license, ID, or statement.",
+      reasoning: `${signalReason} ${sourceReason}`,
     };
   }
 
@@ -132,7 +195,7 @@ function buildMockResult(fileName, extractedText, fileType) {
     category: "General",
     summary: `General document for review. Preview: ${textPreview || "No text extracted yet."}`,
     confidence: 0.79,
-    reasoning: "No strong pattern match found, so a generic category was applied as fallback.",
+    reasoning: `${signalReason} ${sourceReason}`,
   };
 }
 

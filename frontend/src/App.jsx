@@ -1,10 +1,14 @@
 import { useState } from 'react'
+import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist'
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import './App.css'
 import UploadBox from './components/UploadBox'
 import FileList from './components/FileList'
 import AnalysisResults from './components/AnalysisResults'
 import FolderTree from './components/FolderTree'
 import { API_BASE_URL } from './config'
+
+GlobalWorkerOptions.workerSrc = pdfWorker
 
 function App() {
   const [selectedFiles, setSelectedFiles] = useState([])
@@ -23,8 +27,7 @@ function App() {
     })),
   })
 
-  // Placeholder text mapping until real OCR/text extraction is connected.
-  const getPlaceholderText = (fileName) => {
+  const getKeywordBasedPlaceholder = (fileName) => {
     const lowerName = fileName.toLowerCase()
     if (lowerName.includes('resume') || lowerName.includes('cv')) {
       return 'software engineering resume content'
@@ -78,14 +81,78 @@ function App() {
     return 'general document content'
   }
 
+  const getFileExtension = (fileName = '') => {
+    const parts = fileName.toLowerCase().split('.')
+    return parts.length > 1 ? parts[parts.length - 1] : ''
+  }
+
+  const readPdfText = async (file) => {
+    try {
+      const bytes = await file.arrayBuffer()
+      const pdf = await getDocument({ data: bytes }).promise
+      const pages = []
+
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber)
+        const textContent = await page.getTextContent()
+        const pageText = textContent.items
+          .map((item) => ('str' in item ? item.str : ''))
+          .join(' ')
+          .trim()
+        if (pageText) {
+          pages.push(pageText)
+        }
+      }
+
+      if (pages.length > 0) {
+        return pages.join('\n')
+      }
+    } catch (pdfError) {
+      // Fall back cleanly if browser-side PDF parsing fails.
+      void pdfError
+    }
+
+    return `PDF file uploaded (${file.name}). Text extraction is limited for this file in-browser.`
+  }
+
+  // Extracts per-file text for backend analysis with practical fallbacks.
+  const extractFileText = async (file) => {
+    const extension = getFileExtension(file.name)
+    const mimeType = (file.type || '').toLowerCase()
+
+    if (extension === 'txt' || extension === 'md') {
+      return file.text()
+    }
+
+    if (extension === 'pdf' || mimeType.includes('pdf')) {
+      return readPdfText(file)
+    }
+
+    if (
+      ['png', 'jpg', 'jpeg', 'webp'].includes(extension) ||
+      mimeType.startsWith('image/')
+    ) {
+      return 'image file uploaded'
+    }
+
+    return `Unsupported file type uploaded (${file.name}, ${file.type || 'unknown type'}).`
+  }
+
   // Converts browser File objects into backend /analyze payload shape.
-  const buildAnalyzePayload = (files) => ({
-    files: files.map((file) => ({
-      name: file.name,
-      type: file.type || 'unknown',
-      text: getPlaceholderText(file.name),
-    })),
-  })
+  const buildAnalyzePayload = async (files) => {
+    const extractedFiles = await Promise.all(
+      files.map(async (file) => {
+        const extractedText = await extractFileText(file)
+        return {
+          name: file.name,
+          type: file.type || 'unknown',
+          text: extractedText || getKeywordBasedPlaceholder(file.name),
+        }
+      })
+    )
+
+    return { files: extractedFiles }
+  }
 
   // Analyze files first, then ask backend to generate folder organization preview.
   const handleAnalyzeFiles = async () => {
@@ -98,7 +165,7 @@ function App() {
     setError('')
 
     try {
-      const payload = buildAnalyzePayload(selectedFiles)
+      const payload = await buildAnalyzePayload(selectedFiles)
       const response = await fetch(`${API_BASE_URL}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
