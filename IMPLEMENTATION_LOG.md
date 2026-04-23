@@ -198,3 +198,25 @@ Current status is healthy and demo-ready:
 - Validation:
   - `npm run lint` passes
   - `npm run build` passes
+
+## 9) Real File Selection in Frontend
+
+- Replaced hardcoded frontend file list with real browser file selection.
+- Updated `frontend/src/components/UploadBox.jsx`:
+  - Added standard `<input type="file" multiple />`
+  - Emits selected files to parent via `onFilesSelected`
+- Updated `frontend/src/App.jsx`:
+  - Added `selectedFiles` React state
+  - Before section now renders selected file names from state
+  - Analyze payload is now built from selected files
+  - Added placeholder text mapping per filename:
+    - includes `resume` -> `"Software engineering resume content"`
+    - includes `notes` -> `"Distributed systems lecture notes"`
+    - otherwise -> `"General document content"`
+  - Preserved analyze -> organize chaining and existing loading/error handling
+  - Added guard error when Analyze is clicked with no selected files
+- Updated `frontend/src/components/FileList.jsx`:
+  - Shows a friendly message when no files are selected
+- Validation:
+  - `npm run lint` passes
+  - `npm run build` passes

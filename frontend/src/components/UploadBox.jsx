@@ -1,10 +1,21 @@
-// Reusable drag-and-drop style box for future file upload wiring.
-function UploadBox() {
+// Simple multi-file picker used by the analyze flow.
+function UploadBox({ onFilesSelected }) {
+  const handleFileChange = (event) => {
+    const files = Array.from(event.target.files || [])
+    onFilesSelected(files)
+  }
+
   return (
-    <div className="upload-box" role="button" tabIndex={0}>
-      <p className="upload-title">Drop files here</p>
-      <p className="upload-subtitle">or click to browse</p>
-    </div>
+    <label className="upload-box">
+      <input
+        className="upload-input"
+        type="file"
+        multiple
+        onChange={handleFileChange}
+      />
+      <p className="upload-title">Select files to analyze</p>
+      <p className="upload-subtitle">Choose one or more files</p>
+    </label>
   )
 }
 

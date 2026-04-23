@@ -6,28 +6,13 @@ import AnalysisResults from './components/AnalysisResults'
 import FolderTree from './components/FolderTree'
 import { API_BASE_URL } from './config'
 
-const mockAnalyzePayload = {
-  files: [
-    {
-      name: 'resume_final.pdf',
-      type: 'pdf',
-      text: 'Software engineering resume content',
-    },
-    {
-      name: 'notes_ds.pdf',
-      type: 'pdf',
-      text: 'Distributed systems lecture notes',
-    },
-  ],
-  mode: 'general',
-}
-
 function App() {
+  const [selectedFiles, setSelectedFiles] = useState([])
   const [analysisResults, setAnalysisResults] = useState([])
   const [folderTreeData, setFolderTreeData] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const originalFiles = mockAnalyzePayload.files.map((file) => file.name)
+  const originalFiles = selectedFiles.map((file) => file.name)
 
   // Normalizes backend /organize response into the tree shape used by FolderTree.
   const mapOrganizePreviewToTree = (preview) => ({
@@ -38,16 +23,40 @@ function App() {
     })),
   })
 
+  // Placeholder text mapping until real OCR/text extraction is connected.
+  const getPlaceholderText = (fileName) => {
+    const lowerName = fileName.toLowerCase()
+    if (lowerName.includes('resume')) return 'Software engineering resume content'
+    if (lowerName.includes('notes')) return 'Distributed systems lecture notes'
+    return 'General document content'
+  }
+
+  // Converts browser File objects into backend /analyze payload shape.
+  const buildAnalyzePayload = (files) => ({
+    files: files.map((file) => ({
+      name: file.name,
+      type: file.type || 'unknown',
+      text: getPlaceholderText(file.name),
+    })),
+    mode: 'general',
+  })
+
   // Analyze files first, then ask backend to generate folder organization preview.
   const handleAnalyzeFiles = async () => {
+    if (selectedFiles.length === 0) {
+      setError('Please select at least one file before analyzing.')
+      return
+    }
+
     setIsLoading(true)
     setError('')
 
     try {
+      const payload = buildAnalyzePayload(selectedFiles)
       const response = await fetch(`${API_BASE_URL}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mockAnalyzePayload),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
@@ -87,7 +96,7 @@ function App() {
       </header>
 
       <section className="card">
-        <UploadBox />
+        <UploadBox onFilesSelected={setSelectedFiles} />
         <button
           className="analyze-button"
           type="button"

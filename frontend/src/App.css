@@ -37,6 +37,7 @@
   text-align: center;
   background: #f8fafc;
   cursor: pointer;
+  display: block;
 }
 
 .upload-title {
@@ -47,6 +48,11 @@
 .upload-subtitle {
   margin-top: 6px;
   color: #64748b;
+}
+
+.upload-input {
+  display: block;
+  margin: 0 auto 12px;
 }
 
 .analyze-button {
