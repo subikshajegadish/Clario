@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import toast, { Toaster } from 'react-hot-toast'
+import JSZip from 'jszip'
 import './App.css'
 import UploadBox from './components/UploadBox'
 import FileList from './components/FileList'
@@ -10,13 +12,42 @@ import { API_BASE_URL } from './config'
 
 GlobalWorkerOptions.workerSrc = pdfWorker
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+
 function App() {
   const [selectedFiles, setSelectedFiles] = useState([])
   const [analysisResults, setAnalysisResults] = useState([])
   const [folderTreeData, setFolderTreeData] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const originalFiles = selectedFiles.map((file) => file.name)
+  const originalFiles = selectedFiles.map((file) => ({ name: file.name, size: file.size }))
+
+  // Validates file count and sizes before storing; toasts and drops violations.
+  const handleFilesSelected = (files) => {
+    let accepted = files
+    if (files.length > 10) {
+      toast.error(
+        `Too many files — only 10 allowed at once. ${files.length - 10} file(s) were removed.`,
+        { duration: 5000 }
+      )
+      accepted = files.slice(0, 10)
+    }
+
+    const valid = []
+    accepted.forEach((file) => {
+      if (file.size > MAX_FILE_SIZE) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1)
+        toast.error(
+          `"${file.name}" is ${sizeMB} MB — files must be under 10 MB.`,
+          { duration: 5000 }
+        )
+      } else {
+        valid.push(file)
+      }
+    })
+    setSelectedFiles(valid)
+  }
+  console.log(selectedFiles)
 
   // Normalizes backend /organize response into the tree shape used by FolderTree.
   const mapOrganizePreviewToTree = (preview) => ({
@@ -135,29 +166,39 @@ function App() {
       return 'image file uploaded'
     }
 
-    return `Unsupported file type uploaded (${file.name}, ${file.type || 'unknown type'}).`
+    throw new Error(
+      `Unsupported file type: "${file.name}" (.${extension || file.type || 'unknown'}) cannot be processed.`
+    )
   }
 
   // Converts browser File objects into backend /analyze payload shape.
+  // Skips files with unsupported types and shows a toast for each one.
   const buildAnalyzePayload = async (files) => {
-    const extractedFiles = await Promise.all(
+    const results = await Promise.all(
       files.map(async (file) => {
-        const extractedText = await extractFileText(file)
-        return {
-          name: file.name,
-          type: file.type || 'unknown',
-          text: extractedText || getKeywordBasedPlaceholder(file.name),
+        try {
+          const extractedText = await extractFileText(file)
+          return {
+            name: file.name,
+            type: file.type || 'unknown',
+            text: extractedText || getKeywordBasedPlaceholder(file.name),
+          }
+        } catch (fileError) {
+          toast.error(fileError.message, { duration: 5000 })
+          return null
         }
       })
     )
 
-    return { files: extractedFiles }
+    return { files: results.filter(Boolean) }
   }
 
   // Analyze files first, then ask backend to generate folder organization preview.
   const handleAnalyzeFiles = async () => {
     if (selectedFiles.length === 0) {
-      setError('Please select at least one file before analyzing.')
+      const msg = 'Please select at least one file before analyzing.'
+      setError(msg)
+      toast.error(msg)
       return
     }
 
@@ -193,7 +234,9 @@ function App() {
       const organizeData = await organizeResponse.json()
       setFolderTreeData(mapOrganizePreviewToTree(organizeData.preview))
     } catch (requestError) {
-      setError(requestError.message || 'Failed to process files. Please try again.')
+      const msg = requestError.message || 'Failed to process files. Please try again.'
+      setError(msg)
+      toast.error(msg)
       setAnalysisResults([])
       setFolderTreeData(null)
     } finally {
@@ -201,8 +244,63 @@ function App() {
     }
   }
 
+  // Builds a ZIP in-memory with files grouped into their AI-assigned category folders.
+  const handleDownloadZip = async () => {
+    if (selectedFiles.length === 0 || analysisResults.length === 0) return
+
+    const toastId = toast.loading('Building ZIP…')
+    try {
+      const zip = new JSZip()
+
+      // Build a lookup map: "name_size" → category from analysis results.
+      // selectedFiles still holds the original File objects in RAM.
+      const categoryMap = {}
+      analysisResults.forEach((result) => {
+        // Match the file in selectedFiles to get its size for the key.
+        const match = selectedFiles.find((f) => f.name === result.original_name)
+        if (match) {
+          const key = `${match.name}_${match.size}`
+          categoryMap[key] = result.category || 'Uncategorized'
+        }
+      })
+
+      selectedFiles.forEach((file) => {
+        const key = `${file.name}_${file.size}`
+        const folder = categoryMap[key] || 'Uncategorized'
+        zip.folder(folder).file(file.name, file)
+      })
+
+      const blob = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = 'clario-organized.zip'
+      anchor.click()
+      URL.revokeObjectURL(url)
+
+      toast.success('ZIP downloaded!', { id: toastId })
+    } catch (zipError) {
+      toast.error(`ZIP failed: ${zipError.message}`, { id: toastId })
+    }
+  }
+
   return (
     <main className="app">
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          error: {
+            style: {
+              background: '#1e1e2e',
+              color: '#f38ba8',
+              border: '1px solid #f38ba8',
+              borderRadius: '10px',
+              fontFamily: 'Inter, sans-serif',
+            },
+            iconTheme: { primary: '#f38ba8', secondary: '#1e1e2e' },
+          },
+        }}
+      />
       <header className="hero">
         <p className="hero-kicker">Clario Demo</p>
         <h1>Clario</h1>
@@ -217,15 +315,25 @@ function App() {
         <p className="mode-helper">
           Clario automatically detects file themes and groups similar files together.
         </p>
-        <UploadBox onFilesSelected={setSelectedFiles} />
-        <button
-          className="analyze-button"
-          type="button"
-          onClick={handleAnalyzeFiles}
-          disabled={isLoading}
-        >
-          {isLoading ? 'Analyzing...' : 'Analyze Files'}
-        </button>
+        <UploadBox onFilesSelected={handleFilesSelected} />
+        <div className="button-row">
+          <button
+            className="analyze-button"
+            type="button"
+            onClick={handleAnalyzeFiles}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Analyzing...' : 'Analyze Files'}
+          </button>
+          <button
+            className="download-button"
+            type="button"
+            onClick={handleDownloadZip}
+            disabled={analysisResults.length === 0 || isLoading}
+          >
+            ⬇ Download as ZIP
+          </button>
+        </div>
         {error ? <p className="error-text">{error}</p> : null}
       </section>
 
