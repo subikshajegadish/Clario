@@ -42,7 +42,7 @@ AI-powered file organizer that understands file content, discovers semantic rela
 - Claude returns strict JSON per file:
   `new_name`, `category`, `summary`, `confidence`, `reasoning`, `keywords`, `entities`, `scene_description`
 - Retry + timeout wrapper on every API call
-- Fallback to rule-based analysis if Claude fails
+- Claude-only analysis mode: if Claude is unavailable or response is invalid, analysis fails explicitly
 
 **3. Pass 2 — Semantic Clustering (`POST /organize`)**
 - All Pass 1 summaries sent together in one prompt via `PASS2_BATCH_GROUPING_PROMPT`
@@ -53,6 +53,7 @@ AI-powered file organizer that understands file content, discovers semantic rela
 
 **4. ZIP Download (Frontend)**
 - Folder tree preview and ZIP use identical folder mapping
+- Both preview and ZIP use AI-generated `new_name` values (not original upload names)
 - JSZip builds one-level structure only: `zip-name/folder/file`
 - Original `lastModified` timestamps preserved per file
 - Default ZIP name: `clario-{month}{day}-{year}.zip` (user-editable before download)
@@ -99,12 +100,13 @@ npm run dev
 
 Create `backend/.env`:
 ```
-CLAUDE_API_KEY=your_anthropic_api_key
-CLAUDE_MODEL=claude-sonnet-4-20250514
+ANTHROPIC_API_KEY=your_anthropic_api_key
 USE_LLM_ANALYZER=true
+CLAUDE_MODEL=claude-sonnet-4-20250514
+PORT=3001
 ```
 
-> If `CLAUDE_API_KEY` is missing, backend falls back to rule-based analysis.
+> `CLAUDE_API_KEY` is also accepted for compatibility, but `ANTHROPIC_API_KEY` is the recommended key name.
 > If the configured model returns a 404, backend automatically tries fallback model candidates.
 
 ## Constraints
