@@ -558,9 +558,8 @@ function App() {
         }}
       />
       <header className="hero">
-        <p className="hero-kicker">Clario Demo</p>
         <h1>Clario</h1>
-        <p>AI-powered file organizer</p>
+        <p>Intelligent file organization for modern workflows</p>
       </header>
 
       <section className="card">

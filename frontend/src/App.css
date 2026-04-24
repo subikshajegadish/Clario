@@ -11,10 +11,10 @@
 .app {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 52px 24px 80px;
+  padding: 56px 24px 84px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 20px;
   color: var(--text);
   animation: fade-in 0.5s ease;
 }
@@ -98,42 +98,31 @@
 
 .hero {
   text-align: center;
-  padding: 20px 0 4px;
-}
-
-.hero-kicker {
-  margin: 0;
-  display: inline-block;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: #1e2034;
-  color: #a3b7ff;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  padding: 10px 0 2px;
 }
 
 .hero h1 {
-  margin: 12px 0 6px;
-  font-size: 3.2rem;
+  margin: 0 0 10px;
+  font-size: 3rem;
   line-height: 1;
   font-family: 'Syne', sans-serif;
   color: var(--text);
-  text-shadow: 0 0 24px rgba(96, 165, 250, 0.2);
+  letter-spacing: -0.02em;
+  text-shadow: 0 8px 30px rgba(96, 165, 250, 0.18);
 }
 
 .hero p {
-  margin-top: 0;
+  margin: 0;
   color: var(--muted);
+  font-size: 1rem;
 }
 
 .card {
   background: var(--card);
   border: 1px solid #1e1e33;
-  border-radius: 16px;
+  border-radius: 18px;
   padding: 24px;
-  box-shadow: 0 0 30px rgba(124, 106, 247, 0.1);
+  box-shadow: 0 12px 34px rgba(8, 8, 16, 0.34);
   min-width: 0;
 }
 
@@ -179,14 +168,14 @@
   justify-content: center;
   width: 100%;
   min-height: 240px;
-  border: 1.5px dashed #384069;
-  border-radius: 16px;
+  border: 1.5px dashed #3c4368;
+  border-radius: 14px;
   padding: 38px 18px;
   text-align: center;
   background: linear-gradient(180deg, #101426 0%, #0f0f1a 100%);
   cursor: pointer;
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
 .upload-box::before,
@@ -197,7 +186,8 @@
 
 .upload-box:hover {
   border-color: #7c6af7;
-  box-shadow: 0 0 0 2px rgba(124, 106, 247, 0.2);
+  box-shadow: 0 0 0 2px rgba(124, 106, 247, 0.16), 0 10px 30px rgba(8, 8, 16, 0.35);
+  transform: translateY(-1px);
 }
 
 .upload-input-hidden {
@@ -238,7 +228,8 @@
 }
 
 .button-row {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 16px;
 }
@@ -246,31 +237,48 @@
 .analyze-button,
 .download-button,
 .reset-button {
-  width: 100%;
+  flex: 1 1 220px;
   border-radius: 12px;
   padding: 12px 16px;
   font-weight: 700;
   font-size: 0.95rem;
   cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
 
 .analyze-button {
   border: none;
   color: #fff;
   background: linear-gradient(120deg, var(--accent-a), var(--accent-b));
-  box-shadow: 0 0 22px rgba(124, 106, 247, 0.35);
+  box-shadow: 0 8px 22px rgba(124, 106, 247, 0.3);
 }
 
 .download-button {
   border: none;
   color: #fff;
   background: linear-gradient(120deg, #16a34a, #22c55e);
+  box-shadow: 0 8px 20px rgba(34, 197, 94, 0.22);
 }
 
 .reset-button {
   border: 1px solid #2e2e4a;
   background: transparent;
   color: var(--muted);
+}
+
+.analyze-button:hover,
+.download-button:hover,
+.reset-button:hover {
+  transform: translateY(-1px);
+}
+
+.analyze-button:disabled,
+.download-button:disabled,
+.reset-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .loading-spinner {
@@ -310,7 +318,7 @@
 .file-item {
   background: var(--surface);
   border: 1px solid #26263f;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 11px 12px;
   display: flex;
   justify-content: space-between;
@@ -378,7 +386,7 @@
 
 .result-card {
   border: 1px solid #26263f;
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 18px;
   background: var(--surface);
 }
@@ -438,7 +446,7 @@
 .folder-tree {
   background: var(--surface);
   border: 1px solid #26263f;
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 12px 14px;
 }
 
@@ -482,6 +490,11 @@
   .app {
     padding: 28px 14px 36px;
   }
+
+  .button-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
 }
 
 [data-theme='light'] {
@@ -503,13 +516,8 @@
   text-shadow: none;
 }
 
-[data-theme='light'] .hero p,
-[data-theme='light'] .hero-kicker {
+[data-theme='light'] .hero p {
   color: #334155;
-}
-
-[data-theme='light'] .hero-kicker {
-  background: #dbeafe;
 }
 
 [data-theme='light'] .result-category {
