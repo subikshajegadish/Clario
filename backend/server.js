@@ -1,4 +1,5 @@
 // Minimal Express server for Clario's backend API.
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const { analyzeFiles, buildFolderPreview } = require("./services/mockAi");
@@ -9,8 +10,8 @@ const PORT = 3001;
 // Enable CORS for local frontend-backend communication.
 app.use(cors());
 
-// Parse incoming JSON payloads.
-app.use(express.json());
+// Parse incoming JSON payloads (include room for image base64 payloads).
+app.use(express.json({ limit: "25mb" }));
 
 // Basic health check endpoint to verify server is running.
 app.get("/health", (req, res) => {
@@ -41,8 +42,8 @@ app.post("/analyze", async (req, res) => {
   }
 });
 
-// Organize route: accepts analyzed files and returns folder tree preview.
-app.post("/organize", (req, res) => {
+// Organize route: runs pass-2 semantic grouping across all analyzed files.
+app.post("/organize", async (req, res) => {
   const { analyzed_files: analyzedFiles = [] } = req.body;
 
   if (!Array.isArray(analyzedFiles)) {
@@ -51,12 +52,18 @@ app.post("/organize", (req, res) => {
     });
   }
 
-  const preview = buildFolderPreview(analyzedFiles);
-
-  return res.json({
-    status: "ok",
-    preview,
-  });
+  try {
+    const preview = await buildFolderPreview(analyzedFiles);
+    return res.json({
+      status: "ok",
+      preview,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Failed to build organization preview.",
+      details: error.message,
+    });
+  }
 });
 
 app.listen(PORT, () => {
